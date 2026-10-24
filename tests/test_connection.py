@@ -415,6 +415,8 @@ class TestStructuredErrors:
                 "error_kind": "TIMEOUT",
                 "message": "Command timed out after 30s",
                 "hints": ["split it up"],
+                "operation_id": "cloud-operation",
+                "operation_state": "running",
             }
         )
         conn = Fusion360Connection(host="127.0.0.1", port=port)
@@ -423,6 +425,15 @@ class TestStructuredErrors:
             conn.send_command("extrude")
         assert exc_info.value.error_kind == "TIMEOUT"
         assert exc_info.value.hints == ["split it up"]
+        assert exc_info.value.details == {
+            "operation_id": "cloud-operation",
+            "operation_state": "running",
+        }
+        from fusion360_mcp.server import _fusion_error_result
+
+        rendered = _fusion_error_result("extrude", exc_info.value)
+        assert "operation_id: cloud-operation" in rendered.content[0].text
+        assert "operation_state: running" in rendered.content[0].text
 
 
 class TestMutationTimeoutSafety:

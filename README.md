@@ -282,6 +282,7 @@ Call the `ping` tool from your client. If it returns `{"ok": true, "status": "po
 | Tool | Description |
 |------|-------------|
 | `execute_code` | Run arbitrary Python in Fusion (REPL-style) |
+| `get_operation_status` | Recover the status and eventual response of a timed-out operation |
 
 ### Perception
 | Tool | Description |
@@ -309,7 +310,9 @@ uv run ruff check   # lint
 
 - All Fusion API units are **centimeters** (Fusion's internal unit).
 - One operation per tool call. Batching multiple operations crashes the add-in.
-- Timeouts: the add-in's main-thread bridge times out after 30s and *cancels* the queued command; the client waits up to 45s so it receives that structured `TIMEOUT` error. **Mutation commands are never auto-retried** — after a timeout, call `get_scene_info` to check whether anything was applied before retrying.
+- Timeouts: after 30s the bridge returns `TIMEOUT` with `operation_id` and `operation_state`. Work still queued is cancelled atomically; work already running **continues** because Fusion API calls cannot be safely interrupted. Call `get_operation_status(operation_id=...)` to retrieve its eventual original response without executing it again. Polling works while Fusion's main thread is blocked. Finished results are kept for up to ten minutes (latest 128); restarting the add-in loses operation IDs. The client waits up to 45s to receive this structured response. Mutation commands are never auto-retried.
+- Health checks: `ping()` checks only the socket transport. Use `ping(main_thread=True)` to check that Fusion's main-thread queue can process work; this can time out behind cloud access or a modal dialog.
+- Cloud enumeration: accessing folder contents can refresh cloud data ([Autodesk API reference](https://help.autodesk.com/cloudhelp/ENU/Fusion-360-API/files/core_DataFile.htm)). A running operation indicates execution, not confirmed cloud loading progress. If enumeration times out, poll its operation ID instead of issuing another enumeration. After completion, use `get_scene_info` to verify design state before further mutations. Deploy both the updated MCP server and add-in, then stop/start the add-in in Fusion and reconnect the MCP client; `reload_handler` alone does not reload the bridge.
 - Add-in logs to `~/fusion360mcp.log`.
 - The `undo` tool includes a design-type safety guard — it checks before/after and auto-redoes if the undo would switch from parametric to direct mode.
 - Tested on Fusion 2705.1.15 (macOS arm64). Tools marked **(2026+)** need a build from 2026 or later.

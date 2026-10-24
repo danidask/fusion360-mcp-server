@@ -45,11 +45,16 @@ class FusionError(RuntimeError):
     """Structured error reported by the add-in (or a timed-out command)."""
 
     def __init__(
-        self, message: str, error_kind: str = "UNKNOWN", hints: list[str] | None = None
+        self,
+        message: str,
+        error_kind: str = "UNKNOWN",
+        hints: list[str] | None = None,
+        details: dict | None = None,
     ):
         super().__init__(message)
         self.error_kind = error_kind
         self.hints = hints or []
+        self.details = details or {}
 
 
 class Fusion360Connection:
@@ -194,7 +199,16 @@ class Fusion360Connection:
                 kind, classified_hints = _classify(message)
                 if hints is None:
                     hints = classified_hints
-            raise FusionError(message, error_kind=kind, hints=hints)
+            raise FusionError(
+                message,
+                error_kind=kind,
+                hints=hints,
+                details={
+                    k: response[k]
+                    for k in ("operation_id", "operation_state")
+                    if k in response
+                },
+            )
 
         return response.get("result", {})
 
