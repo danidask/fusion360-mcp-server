@@ -45,7 +45,7 @@ class WorkItem:
         # Only work that has not started can be cancelled on timeout.
         # Running work stays tracked so the caller can recover its result.
         self.cancelled = False
-        self.operation_id = uuid.uuid4().hex
+        self.operation_id = command.get("operation_id") or uuid.uuid4().hex
         self.state = "queued"
         self.finished_at = None
 
@@ -119,9 +119,28 @@ class EventBridge:
             }
 
         log.debug("submit cmd=%s", cmd_type)
+        operation_id = command.get("operation_id")
+        if operation_id is not None and (
+            not isinstance(operation_id, str)
+            or not operation_id
+            or len(operation_id) > 128
+        ):
+            return {
+                "status": "error",
+                "error_kind": "INVALID_INPUT",
+                "message": (
+                    "operation_id must be a nonempty string of at most 128 characters"
+                ),
+            }
         item = WorkItem(command)
         with self._lock:
             self._prune_operations()
+            if item.operation_id in self._operations:
+                return {
+                    "status": "error",
+                    "error_kind": "INVALID_INPUT",
+                    "message": "operation_id already exists; poll get_operation_status",
+                }
             self._operations[item.operation_id] = item
         self._queue.put(item)
 
@@ -162,8 +181,8 @@ class EventBridge:
                     "operation_state": state,
                     "hints": [
                         "A transport ping does not check Fusion's main thread.",
-                        "Cloud data access may be waiting for Fusion's cloud service; "
-                        "no cloud loading progress is available from this bridge.",
+                        "Running native exports and other Fusion API calls cannot "
+                        "be safely interrupted; poll this ID instead of resubmitting.",
                     ],
                 }
         return self._response(item)

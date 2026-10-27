@@ -334,7 +334,9 @@ TOOLS: list[dict] = [
         "description": (
             "Run arbitrary Python in Fusion 360. "
             "The last expression's value is returned (REPL-style). "
-            "Pre-defined names: app, ui, design, component, adsk, math."
+            "Pre-defined names: app, ui, design, component, adsk, math. "
+            "If a long native export times out, poll the returned operation_id "
+            "with get_operation_status to recover its result; do not resubmit."
         ),
         "inputSchema": {
             "type": "object",
